@@ -33,6 +33,7 @@ export default async function CCManagerDashboard() {
     { data: payments },
     { data: transactions },
     { data: milestones },
+    { data: txnMilestones },
   ] = await Promise.all([
     supabase.from('cc_card_families').select('*').eq('org_id', orgId),
     supabase.from('cc_cards').select('*').eq('org_id', orgId).eq('is_active', true),
@@ -40,6 +41,7 @@ export default async function CCManagerDashboard() {
     supabase.from('cc_card_payments').select('*').eq('org_id', orgId),
     supabase.from('cc_transactions').select('*').eq('org_id', orgId),
     supabase.from('cc_milestones').select('*').eq('org_id', orgId),
+    supabase.from('cc_transaction_milestones').select('transaction_id, milestone_id'),
   ])
 
   return (
@@ -50,6 +52,7 @@ export default async function CCManagerDashboard() {
       payments={payments ?? []}
       transactions={transactions ?? []}
       milestones={milestones ?? []}
+      txnMilestones={txnMilestones ?? []}
       orgId={orgId}
     />
   )

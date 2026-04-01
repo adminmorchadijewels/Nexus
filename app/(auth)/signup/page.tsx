@@ -32,24 +32,14 @@ export default function SignupPage() {
       return
     }
 
-    // Create organisation + add as owner
-    const { data: org, error: orgError } = await supabase
-      .from('organisations')
-      .insert({ name: orgName })
-      .select()
-      .single()
+    // Create organisation via SECURITY DEFINER RPC (bypasses RLS safely)
+    const { error: orgError } = await supabase.rpc('create_org_for_user', { org_name: orgName })
 
-    if (orgError || !org) {
+    if (orgError) {
       setError('Failed to create organisation')
       setLoading(false)
       return
     }
-
-    await supabase.from('org_members').insert({
-      org_id: org.id,
-      user_id: data.user.id,
-      role: 'owner',
-    })
 
     router.push('/cc-manager')
     router.refresh()

@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { X, CreditCard } from 'lucide-react'
+import { X, CreditCard, AlertCircle } from 'lucide-react'
 
 interface PaymentLoggerProps {
   statement: CCStatement
@@ -21,6 +21,7 @@ interface PaymentLoggerProps {
 
 export function PaymentLogger({ statement, card, remaining, onClose, onSuccess }: PaymentLoggerProps) {
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const [amount, setAmount] = useState(remaining.toString())
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0])
   const [paymentMode, setPaymentMode] = useState('upi')
@@ -30,6 +31,7 @@ export function PaymentLogger({ statement, card, remaining, onClose, onSuccess }
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
+    setError('')
     try {
       await logPayment({
         card_id: card.id,
@@ -44,7 +46,7 @@ export function PaymentLogger({ statement, card, remaining, onClose, onSuccess }
       onSuccess()
       onClose()
     } catch (err) {
-      console.error(err)
+      setError(err instanceof Error ? err.message : 'Failed to log payment')
     } finally {
       setLoading(false)
     }
@@ -140,6 +142,13 @@ export function PaymentLogger({ statement, card, remaining, onClose, onSuccess }
             </button>
             <span className="text-xs text-slate-300">Tag to ₹9L annual cap tracker</span>
           </div>
+
+          {error && (
+            <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 rounded-lg px-3 py-2">
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+              {error}
+            </div>
+          )}
 
           <Button
             type="submit"

@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.101.1'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -7,19 +7,16 @@ function computeDueDate(cycleEndDate: Date, bufferDays: number): Date {
   return new Date(cycleEndDate.getTime() + bufferDays * 86400000)
 }
 
-function getCycleEnd(year: number, month: number, day: number): Date {
-  // cycle_end = day before bill_generate_day of next month
-  let endMonth = month + 1
-  let endYear = year
-  if (endMonth > 11) {
-    endMonth = 0
-    endYear = year + 1
+Deno.serve(async (req) => {
+  // Require CRON_SECRET bearer token — reject all unauthenticated callers
+  const cronSecret = Deno.env.get('CRON_SECRET')
+  if (!cronSecret || req.headers.get('Authorization') !== `Bearer ${cronSecret}`) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    })
   }
-  // day before bill_generate_day in next month
-  return new Date(endYear, endMonth, day - 1)
-}
 
-Deno.serve(async (_req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
   const today = new Date()
   const todayDay = today.getDate()
@@ -85,9 +82,8 @@ Deno.serve(async (_req) => {
 
     results.push(`Card ${card.id}: statement created for cycle ${cycleStartStr}`)
 
-    // Send email notification if registered_email exists
+    // Email notification placeholder (integrate Resend/SendGrid here)
     if (card.registered_email) {
-      // Email sending would integrate with Resend/SendGrid here
       results.push(`Card ${card.id}: notification queued for ${card.registered_email}`)
     }
   }

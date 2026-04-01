@@ -18,6 +18,11 @@ import {
   CreditCard, AlertTriangle, TrendingUp, CheckCircle2, Target, BarChart2, CalendarClock,
 } from 'lucide-react'
 
+interface TxnMilestoneLink {
+  transaction_id: string
+  milestone_id: string
+}
+
 interface Props {
   families: CCCardFamily[]
   cards: CCCard[]
@@ -25,11 +30,12 @@ interface Props {
   payments: CCCardPayment[]
   transactions: CCTransaction[]
   milestones: CCMilestone[]
+  txnMilestones: TxnMilestoneLink[]
   orgId: string
 }
 
 export function DashboardClient({
-  families, cards, statements, payments, transactions, milestones,
+  families, cards, statements, payments, transactions, milestones, txnMilestones,
 }: Props) {
   const now = useMemo(() => new Date(), [])
   const { start: fyStart, end: fyEnd } = useMemo(() => getFYRange(now), [now])
@@ -121,14 +127,21 @@ export function DashboardClient({
     }))
   }, [families, transactions, payments, fyStart, fyEnd])
 
-  // Milestone progress
+  // Milestone progress — computed from cc_transaction_milestones junction table
+  const spentByMilestone = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const link of txnMilestones) {
+      const txn = transactions.find((t) => t.id === link.transaction_id)
+      if (txn) {
+        map[link.milestone_id] = (map[link.milestone_id] ?? 0) + txn.amount
+      }
+    }
+    return map
+  }, [txnMilestones, transactions])
+
   const milestoneData = useMemo(() => {
     return milestones.map((ms) => {
-      const txns = transactions.filter((t) => {
-        // We check milestone_tags JSON or transaction_milestones — for simplicity use milestone_tags
-        return t.milestone_tags && t.milestone_tags.includes(ms.id)
-      })
-      const spent = txns.reduce((sum, t) => sum + t.amount, 0)
+      const spent = spentByMilestone[ms.id] ?? 0
       return {
         milestone: ms,
         card: cards.find((c) => c.id === ms.card_id),
@@ -136,7 +149,7 @@ export function DashboardClient({
         progress: getMilestoneProgress(ms.target_amount, spent),
       }
     })
-  }, [milestones, transactions, cards])
+  }, [milestones, spentByMilestone, cards])
 
   const activeMilestones = milestoneData.filter((m) => m.milestone.status === 'active')
   const achievedMilestones = milestoneData.filter((m) => m.milestone.status === 'achieved')

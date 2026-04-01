@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { X, ShoppingCart } from 'lucide-react'
+import { X, ShoppingCart, AlertCircle } from 'lucide-react'
 
 const CATEGORIES = [
   { value: 'travel', label: 'Travel' },
@@ -31,6 +31,7 @@ interface TransactionFormProps {
 
 export function TransactionForm({ statement, card, activeMilestones, onClose, onSuccess }: TransactionFormProps) {
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const [merchant, setMerchant] = useState('')
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
@@ -48,6 +49,7 @@ export function TransactionForm({ statement, card, activeMilestones, onClose, on
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
+    setError('')
     try {
       await logTransaction({
         statement_id: statement.id,
@@ -56,7 +58,7 @@ export function TransactionForm({ statement, card, activeMilestones, onClose, on
         merchant,
         amount: Number(amount),
         date,
-        category,
+        category: category as 'travel' | 'food' | 'utilities' | 'office' | 'misc' | 'others' | 'reward',
         milestone_ids: selectedMilestones,
         exclude_from_9l: excludeFrom9l,
         notes: notes || undefined,
@@ -64,7 +66,7 @@ export function TransactionForm({ statement, card, activeMilestones, onClose, on
       onSuccess()
       onClose()
     } catch (err) {
-      console.error(err)
+      setError(err instanceof Error ? err.message : 'Failed to log transaction')
     } finally {
       setLoading(false)
     }
@@ -191,6 +193,13 @@ export function TransactionForm({ statement, card, activeMilestones, onClose, on
             </button>
             <span className="text-xs text-slate-300">Exclude from ₹9L tracker</span>
           </div>
+
+          {error && (
+            <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 rounded-lg px-3 py-2">
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+              {error}
+            </div>
+          )}
 
           <Button
             type="submit"
