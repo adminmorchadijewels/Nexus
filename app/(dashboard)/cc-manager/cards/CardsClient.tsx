@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CCCard, CCCardFamily, CCStatement, CCCardPayment } from '@/lib/supabase/types'
 import { CardTile } from '@/components/cc-manager/CardTile'
-import { Plus, X } from 'lucide-react'
+import { Plus, X, AlertCircle } from 'lucide-react'
 import { addCard, addCardFamily } from '@/lib/cc-manager/actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,18 +21,24 @@ interface Props {
   orgId: string
 }
 
+const CARD_COLORS = ['#0D9488', '#6366F1', '#F59E0B', '#EC4899', '#3B82F6', '#8B5CF6']
+
 export function CardsClient({ cards, families, statements, payments }: Props) {
   const router = useRouter()
   const [showAddCard, setShowAddCard] = useState(false)
   const [showAddFamily, setShowAddFamily] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  // Controlled state for fields that don't serialize via native FormData
+  const [selectedFamilyId, setSelectedFamilyId] = useState('')
+  const [selectedColor, setSelectedColor] = useState('#0D9488')
 
   const paidByStatement: Record<string, number> = {}
   payments.forEach((p) => {
     paidByStatement[p.statement_id] = (paidByStatement[p.statement_id] ?? 0) + p.amount
   })
 
-  // Get current statement per card
   function getCurrentStatement(cardId: string) {
     return statements
       .filter((s) => s.card_id === cardId && s.status !== 'paid' && s.status !== 'zero_due')
@@ -45,27 +51,50 @@ export function CardsClient({ cards, families, statements, payments }: Props) {
       .reduce((sum, s) => sum + Math.max(0, s.total_due - (paidByStatement[s.id] ?? 0)), 0)
   }
 
+  function openAddCard() {
+    setSelectedFamilyId(families[0]?.id ?? '')
+    setSelectedColor('#0D9488')
+    setError('')
+    setShowAddCard(true)
+  }
+
   async function handleAddCard(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    if (!selectedFamilyId) {
+      setError('Please select or create a card family first')
+      return
+    }
     setLoading(true)
-    const fd = new FormData(e.currentTarget)
-    await addCard(fd)
-    setLoading(false)
-    setShowAddCard(false)
-    router.refresh()
+    setError('')
+    try {
+      const fd = new FormData(e.currentTarget)
+      fd.set('family_id', selectedFamilyId)
+      fd.set('color', selectedColor)
+      await addCard(fd)
+      setShowAddCard(false)
+      router.refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add card')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function handleAddFamily(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setLoading(true)
-    const fd = new FormData(e.currentTarget)
-    await addCardFamily(fd)
-    setLoading(false)
-    setShowAddFamily(false)
-    router.refresh()
+    setError('')
+    try {
+      const fd = new FormData(e.currentTarget)
+      await addCardFamily(fd)
+      setShowAddFamily(false)
+      router.refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create family')
+    } finally {
+      setLoading(false)
+    }
   }
-
-  const CARD_COLORS = ['#0D9488', '#6366F1', '#F59E0B', '#EC4899', '#3B82F6', '#8B5CF6']
 
   return (
     <div className="p-4 lg:p-6 max-w-7xl">
@@ -75,19 +104,17 @@ export function CardsClient({ cards, families, statements, payments }: Props) {
           <p className="text-sm text-slate-400 mt-0.5">{cards.length} active cards</p>
         </div>
         <div className="flex gap-2">
-          {families.length === 0 && (
-            <Button
-              onClick={() => setShowAddFamily(true)}
-              variant="outline"
-              className="text-xs border-white/10 text-slate-300 hover:bg-white/5"
-            >
-              Add Family
-            </Button>
-          )}
+          <Button
+            onClick={() => { setError(''); setShowAddFamily(true) }}
+            variant="outline"
+            className="text-xs border-white/10 text-slate-300 hover:bg-white/5"
+          >
+            + Family
+          </Button>
           <motion.button
             whileHover={{ rotate: 45, scale: 1.12 }}
             transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-            onClick={() => setShowAddCard(true)}
+            onClick={openAddCard}
             className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center text-white shadow-lg"
             title="Add card"
           >
@@ -99,7 +126,10 @@ export function CardsClient({ cards, families, statements, payments }: Props) {
       {cards.length === 0 ? (
         <div className="glass-card rounded-2xl p-12 text-center">
           <p className="text-slate-400 text-sm mb-3">No cards yet</p>
-          <Button onClick={() => setShowAddCard(true)} className="bg-teal-600 hover:bg-teal-700 text-white">
+          {families.length === 0 && (
+            <p className="text-xs text-amber-400 mb-3">Create a card family first (click &quot;+ Family&quot; above)</p>
+          )}
+          <Button onClick={openAddCard} className="bg-teal-600 hover:bg-teal-700 text-white">
             Add your first card
           </Button>
         </div>
@@ -148,16 +178,25 @@ export function CardsClient({ cards, families, statements, payments }: Props) {
               <form onSubmit={handleAddCard} className="space-y-4">
                 <div>
                   <Label className="text-xs text-slate-400 mb-1.5 block">Card Family</Label>
-                  <Select name="family_id" required>
-                    <SelectTrigger className="bg-white/5 border-white/10 text-white">
-                      <SelectValue placeholder="Select family" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {families.map((f) => (
-                        <SelectItem key={f.id} value={f.id}>{f.cardholder_name} — {f.bank}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {families.length === 0 ? (
+                    <div className="text-xs text-amber-400 bg-amber-500/10 rounded-lg px-3 py-2">
+                      No families yet.{' '}
+                      <button type="button" onClick={() => setShowAddFamily(true)} className="underline">
+                        Create one first
+                      </button>
+                    </div>
+                  ) : (
+                    <Select value={selectedFamilyId} onValueChange={(v) => setSelectedFamilyId(v ?? '')} required>
+                      <SelectTrigger className="bg-white/5 border-white/10 text-white">
+                        <SelectValue placeholder="Select family" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {families.map((f) => (
+                          <SelectItem key={f.id} value={f.id}>{f.cardholder_name} — {f.bank}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                   <button
                     type="button"
                     onClick={() => setShowAddFamily(true)}
@@ -181,7 +220,7 @@ export function CardsClient({ cards, families, statements, payments }: Props) {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs text-slate-400 mb-1.5 block">Bill Generate Day</Label>
-                    <Input name="bill_generate_day" type="number" min="1" max="31" required className="bg-white/5 border-white/10 text-white" placeholder="15" />
+                    <Input name="bill_generate_day" type="number" min="1" max="28" required className="bg-white/5 border-white/10 text-white" placeholder="15" />
                   </div>
                   <div>
                     <Label className="text-xs text-slate-400 mb-1.5 block">Buffer Days</Label>
@@ -225,13 +264,27 @@ export function CardsClient({ cards, families, statements, payments }: Props) {
                   <Label className="text-xs text-slate-400 mb-2 block">Card Color</Label>
                   <div className="flex gap-2">
                     {CARD_COLORS.map((c) => (
-                      <label key={c} className="cursor-pointer">
-                        <input type="radio" name="color" value={c} defaultChecked={c === '#0D9488'} className="sr-only" />
-                        <div className="w-7 h-7 rounded-full border-2 border-transparent hover:border-white/50 transition-all" style={{ background: c }} />
-                      </label>
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setSelectedColor(c)}
+                        className="w-7 h-7 rounded-full transition-all focus:outline-none"
+                        style={{
+                          background: c,
+                          boxShadow: selectedColor === c ? `0 0 0 2px white, 0 0 0 4px ${c}` : 'none',
+                          transform: selectedColor === c ? 'scale(1.2)' : 'scale(1)',
+                        }}
+                      />
                     ))}
                   </div>
                 </div>
+
+                {error && (
+                  <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 rounded-lg px-3 py-2">
+                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                    {error}
+                  </div>
+                )}
 
                 <Button type="submit" disabled={loading} className="w-full bg-teal-600 hover:bg-teal-700 text-white">
                   {loading ? 'Adding...' : 'Add Card'}
@@ -283,6 +336,14 @@ export function CardsClient({ cards, families, statements, payments }: Props) {
                     <Input name="annual_cap" type="number" defaultValue="900000" className="bg-white/5 border-white/10 text-white font-mono" />
                   </div>
                 </div>
+
+                {error && (
+                  <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 rounded-lg px-3 py-2">
+                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                    {error}
+                  </div>
+                )}
+
                 <Button type="submit" disabled={loading} className="w-full bg-teal-600 hover:bg-teal-700 text-white">
                   {loading ? 'Creating...' : 'Create Family'}
                 </Button>

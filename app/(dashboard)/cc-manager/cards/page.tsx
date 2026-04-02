@@ -9,9 +9,13 @@ export default async function CardsPage() {
 
   const { data: memberRow } = await supabase
     .from('org_members').select('org_id').eq('user_id', user.id).single()
-  if (!memberRow) redirect('/login')
 
-  const orgId = memberRow.org_id
+  let orgId = memberRow?.org_id ?? null
+  if (!orgId) {
+    const { data: rpcOrgId } = await supabase.rpc('get_my_org_id')
+    orgId = rpcOrgId ?? null
+  }
+  if (!orgId) redirect('/setup')
 
   const [{ data: cards }, { data: families }, { data: statements }, { data: payments }] =
     await Promise.all([
