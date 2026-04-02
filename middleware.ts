@@ -29,12 +29,18 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
 
-  // Public routes
+  // Public routes (unauthenticated only)
   const publicRoutes = ['/login', '/signup']
   if (publicRoutes.includes(pathname)) {
     if (user) {
       return NextResponse.redirect(new URL('/cc-manager', request.url))
     }
+    return supabaseResponse
+  }
+
+  // /setup is accessible to authenticated users only (not redirected away)
+  if (pathname === '/setup') {
+    if (!user) return NextResponse.redirect(new URL('/login', request.url))
     return supabaseResponse
   }
 

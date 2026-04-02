@@ -14,13 +14,7 @@ export default async function CCManagerDashboard() {
     .single()
 
   if (!memberRow) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <p className="text-slate-400">No organisation found. Please sign up again.</p>
-        </div>
-      </div>
-    )
+    redirect('/setup')
   }
 
   const orgId = memberRow.org_id
