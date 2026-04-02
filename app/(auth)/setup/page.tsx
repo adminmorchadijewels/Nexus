@@ -24,6 +24,12 @@ export default function SetupPage() {
     const { error: rpcError } = await supabase.rpc('create_org_for_user', { org_name: orgName })
 
     if (rpcError) {
+      // "already belongs" means org exists — just proceed to dashboard
+      if (rpcError.message.includes('already belongs')) {
+        router.push('/cc-manager')
+        router.refresh()
+        return
+      }
       setError(rpcError.message)
       setLoading(false)
       return

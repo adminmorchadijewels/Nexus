@@ -13,11 +13,16 @@ export default async function CCManagerDashboard() {
     .eq('user_id', user.id)
     .single()
 
-  if (!memberRow) {
-    redirect('/setup')
+  // Fallback: if RLS blocks the direct SELECT, use SECURITY DEFINER RPC
+  let orgId = memberRow?.org_id ?? null
+  if (!orgId) {
+    const { data: rpcOrgId } = await supabase.rpc('get_my_org_id')
+    orgId = rpcOrgId ?? null
   }
 
-  const orgId = memberRow.org_id
+  if (!orgId) {
+    redirect('/setup')
+  }
 
   // Fetch all data server-side
   const [

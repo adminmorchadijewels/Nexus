@@ -352,6 +352,10 @@ export type Database = {
         Args: { org_name: string }
         Returns: string
       }
+      get_my_org_id: {
+        Args: Record<string, never>
+        Returns: string | null
+      }
     }
     Enums: Record<string, never>
     CompositeTypes: Record<string, never>
