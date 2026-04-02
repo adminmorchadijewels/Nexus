@@ -32,11 +32,19 @@ export default function SignupPage() {
       return
     }
 
+    // If email confirmation is required, session will be null — direct user to check email
+    if (!data.session) {
+      setError('')
+      setLoading(false)
+      router.push('/login?confirm=1')
+      return
+    }
+
     // Create organisation via SECURITY DEFINER RPC (bypasses RLS safely)
     const { error: orgError } = await supabase.rpc('create_org_for_user', { org_name: orgName })
 
     if (orgError) {
-      setError('Failed to create organisation')
+      setError('Failed to create organisation: ' + orgError.message)
       setLoading(false)
       return
     }

@@ -1,17 +1,20 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Mail, Lock, AlertCircle } from 'lucide-react'
+import { Mail, Lock, AlertCircle, MailCheck } from 'lucide-react'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const needsConfirm = searchParams.get('confirm') === '1'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -28,10 +31,23 @@ export default function LoginPage() {
     if (error) {
       setError(error.message)
       setLoading(false)
-    } else {
-      router.push('/cc-manager')
-      router.refresh()
+      return
     }
+
+    // If arriving after email confirmation, org may not exist yet — create it now
+    const { data: member } = await supabase
+      .from('org_members')
+      .select('org_id')
+      .single()
+
+    if (!member) {
+      // org_name is unknown at this point — use email prefix as fallback
+      const defaultOrgName = email.split('@')[0]
+      await supabase.rpc('create_org_for_user', { org_name: defaultOrgName })
+    }
+
+    router.push('/cc-manager')
+    router.refresh()
   }
 
   return (
@@ -49,6 +65,13 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold text-white">Welcome back</h1>
           <p className="text-slate-400 text-sm mt-1">Sign in to Nexus</p>
         </div>
+
+        {needsConfirm && (
+          <div className="flex items-start gap-2 text-xs text-teal-300 bg-teal-500/10 border border-teal-500/20 rounded-xl px-3 py-3 mb-4">
+            <MailCheck className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <span>Account created! Check your inbox and confirm your email, then sign in below.</span>
+          </div>
+        )}
 
         <div className="glass-card rounded-2xl p-6">
           <form onSubmit={handleLogin} className="space-y-4">
@@ -107,5 +130,13 @@ export default function LoginPage() {
         </p>
       </motion.div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   )
 }
